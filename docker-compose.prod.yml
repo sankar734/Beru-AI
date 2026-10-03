@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  nova-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: nova-api-prod
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - MONGODB_URL=mongodb://nova-mongodb:27017/nova_x
+      - REDIS_URL=redis://nova-redis:6379/0
+      - VECTOR_DB_URL=http://nova-vector:6333
+      - USE_IN_MEMORY_FALLBACK=false
+      - JWT_SECRET=prod_super_secure_nova_secret_change_me
+    depends_on:
+      nova-mongodb:
+        condition: service_healthy
+      nova-redis:
+        condition: service_healthy
+    networks:
+      - nova-internal
+    volumes:
+      - ./data/storage:/app/data/storage
+
+  nova-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: nova-web-prod
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - nova-api
+    networks:
+      - nova-internal
+
+  nova-mongodb:
+    image: mongo:7.0
+    container_name: nova-mongodb-prod
+    restart: always
+    environment:
+      - MONGO_INITDB_DATABASE=nova_x
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - nova-internal
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nova-redis:
+    image: redis:7.2-alpine
+    container_name: nova-redis-prod
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - nova-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nova-vector:
+    image: qdrant/qdrant:latest
+    container_name: nova-vector-prod
+    restart: always
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - nova-internal
+
+networks:
+  nova-internal:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+  qdrant_data:
