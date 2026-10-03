@@ -12,6 +12,10 @@ from services.desktop_companion.daemon import (
     ProcessInfo,
     APP_WHITELIST,
 )
+from services.desktop_companion.window_manager import (
+    window_manager,
+    WindowItem,
+)
 from apps.api.auth import get_optional_user
 
 router = APIRouter(prefix="/desktop", tags=["Desktop Companion"])
@@ -69,3 +73,31 @@ async def write_clipboard(payload: ClipboardPayload, user=Depends(get_optional_u
     """Writes text to clipboard buffer."""
     desktop_daemon.write_clipboard(payload.text)
     return {"status": "success", "length": len(payload.text)}
+
+
+class SendKeysPayload(BaseModel):
+    text: str
+
+
+@router.get("/windows", response_model=List[WindowItem])
+async def list_desktop_windows(user=Depends(get_optional_user)):
+    """Enumerates visible top-level windows on the host desktop."""
+    return window_manager.list_windows()
+
+
+@router.post("/windows/{hwnd}/focus")
+async def focus_desktop_window(hwnd: int, user=Depends(get_optional_user)):
+    """Brings a window to the foreground."""
+    success = window_manager.focus_window(hwnd)
+    return {"status": "success" if success else "failed", "hwnd": hwnd}
+
+
+@router.post("/windows/{hwnd}/send-keys")
+async def send_keys_to_window(
+    hwnd: int,
+    payload: SendKeysPayload,
+    user=Depends(get_optional_user),
+):
+    """Sends keystrokes to target window with focus management."""
+    result = window_manager.send_keys(hwnd, payload.text)
+    return result
