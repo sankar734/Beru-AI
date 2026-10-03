@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 from apps.api.config import settings
 from apps.api.database import db_manager
 from apps.api.redis_client import redis_manager
-from apps.api.routers import health, auth, chat, models, search, files, research, projects, memory, media, code, artifacts, learning, experts, tools, agents, workflows, tasks, autopilot, desktop, desktop_files, screen, browser, developer, voice_control, mcp
+from apps.api.routers import health, auth, chat, models, search, files, research, projects, memory, media, code, artifacts, learning, experts, tools, agents, workflows, tasks, autopilot, desktop, desktop_files, screen, browser, developer, voice_control, mcp, security_audit
+from services.security import rate_limiter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("nova.api")
@@ -38,19 +39,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request Tracing Middleware
+# Request Tracing & Security Middleware
 @app.middleware("http")
 async def trace_and_timing_middleware(request: Request, call_next):
     request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
     request.state.request_id = request_id
     start_time = time.time()
 
+    # Rate Limiting Check (per IP/host)
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    allowed, remaining, retry_after = rate_limiter.check_rate_limit(client_ip, limit=500, window_seconds=60)
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many requests. Rate limit threshold exceeded."},
+            headers={"Retry-After": str(retry_after)}
+        )
+
     response = await call_next(request)
 
     process_time = (time.time() - start_time) * 1000
     response.headers["x-request-id"] = request_id
     response.headers["x-process-time-ms"] = f"{process_time:.2f}"
+    response.headers["x-ratelimit-remaining"] = str(remaining)
+
+    # Security Hardening Headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
 
 # Root route
 @app.get("/")
@@ -89,3 +108,4 @@ app.include_router(browser.router, prefix="/api/v1")
 app.include_router(developer.router, prefix="/api/v1")
 app.include_router(voice_control.router, prefix="/api/v1")
 app.include_router(mcp.router, prefix="/api/v1")
+app.include_router(security_audit.router, prefix="/api/v1")
