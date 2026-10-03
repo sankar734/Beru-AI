@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from apps.api.config import settings
 from apps.api.database import db_manager
 from apps.api.redis_client import redis_manager
-from apps.api.routers import health, auth, chat, models, search, files, research, projects, memory, media, code, artifacts, learning, experts
+from apps.api.routers import health, auth, chat, models, search, files, research, projects, memory, media, code, artifacts, learning, experts, tools
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("nova.api")
@@ -77,3 +77,4 @@ app.include_router(code.router, prefix="/api/v1")
 app.include_router(artifacts.router, prefix="/api/v1")
 app.include_router(learning.router, prefix="/api/v1")
 app.include_router(experts.router, prefix="/api/v1")
+app.include_router(tools.router, prefix="/api/v1")
