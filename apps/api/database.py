@@ -35,6 +35,10 @@ class InMemoryCollection:
                 results.append(dict(doc))
         return results
 
+    async def count_documents(self, query: Dict[str, Any] = None) -> int:
+        docs = await self.find(query)
+        return len(docs)
+
     async def insert_one(self, doc: Dict[str, Any]):
         doc_id = str(doc.get("id") or doc.get("_id") or len(self._docs) + 1)
         doc_copy = dict(doc)
