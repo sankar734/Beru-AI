@@ -1,0 +1,26 @@
+{
+  "name": "nova-x-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NOVA X - Complete Personal Intelligence Operating System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "keywords": [
+    "ai",
+    "operating-system",
+    "orchestrator",
+    "desktop-intelligence",
+    "rag",
+    "agents"
+  ],
+  "author": "NOVA X Team",
+  "license": "MIT"
+}
