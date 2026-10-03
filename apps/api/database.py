@@ -11,14 +11,22 @@ class InMemoryCollection:
         self.name = name
         self._docs: Dict[str, Dict[str, Any]] = {}
 
+    def _matches(self, doc: Dict[str, Any], query: Dict[str, Any]) -> bool:
+        for k, v in query.items():
+            if k == "$or" and isinstance(v, list):
+                if not any(self._matches(doc, clause) for clause in v):
+                    return False
+            elif k == "$in" and isinstance(v, list):
+                if doc.get(k) not in v:
+                    return False
+            else:
+                if doc.get(k) != v:
+                    return False
+        return True
+
     async def find_one(self, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         for doc in self._docs.values():
-            match = True
-            for k, v in query.items():
-                if doc.get(k) != v:
-                    match = False
-                    break
-            if match:
+            if self._matches(doc, query):
                 return dict(doc)
         return None
 
@@ -26,12 +34,7 @@ class InMemoryCollection:
         query = query or {}
         results = []
         for doc in self._docs.values():
-            match = True
-            for k, v in query.items():
-                if doc.get(k) != v:
-                    match = False
-                    break
-            if match:
+            if self._matches(doc, query):
                 results.append(dict(doc))
         return results
 
