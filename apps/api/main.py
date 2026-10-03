@@ -9,8 +9,10 @@ from fastapi.responses import JSONResponse
 from apps.api.config import settings
 from apps.api.database import db_manager
 from apps.api.redis_client import redis_manager
-from apps.api.routers import health, auth, chat, models, search, files, research, projects, memory, media, code, artifacts, learning, experts, tools, agents, workflows, tasks, autopilot, desktop, desktop_files, screen, browser, developer, voice_control, mcp, security_audit
+from apps.api.routers import health, auth, chat, models, search, files, research, projects, memory, media, code, artifacts, learning, experts, tools, agents, workflows, tasks, autopilot, desktop, desktop_files, screen, browser, developer, voice_control, mcp, security_audit, telemetry
 from services.security import rate_limiter
+from services.observability import telemetry_collector
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("nova.api")
@@ -63,12 +65,23 @@ async def trace_and_timing_middleware(request: Request, call_next):
     response.headers["x-process-time-ms"] = f"{process_time:.2f}"
     response.headers["x-ratelimit-remaining"] = str(remaining)
 
+    # Telemetry Collection
+    telemetry_collector.record_request(
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+        status_code=response.status_code,
+        duration_ms=process_time,
+        client_ip=client_ip
+    )
+
     # Security Hardening Headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
 
 
 # Root route
@@ -109,3 +122,5 @@ app.include_router(developer.router, prefix="/api/v1")
 app.include_router(voice_control.router, prefix="/api/v1")
 app.include_router(mcp.router, prefix="/api/v1")
 app.include_router(security_audit.router, prefix="/api/v1")
+app.include_router(telemetry.router)
+
