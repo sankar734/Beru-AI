@@ -12,6 +12,8 @@ import {
   Terminal,
   CheckCircle2,
   AlertTriangle,
+  Mic,
+  Volume2
 } from 'lucide-react';
 
 interface SystemVitals {
@@ -44,6 +46,62 @@ export const Desktop: React.FC = () => {
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
+  const [voiceInput, setVoiceInput] = useState<string>('Check system status');
+  const [voiceResult, setVoiceResult] = useState<any | null>(null);
+  const [isProcessingVoice, setIsProcessingVoice] = useState<boolean>(false);
+
+  const handleSendVoiceCommand = async (cmd?: string) => {
+    const textToSend = cmd || voiceInput;
+    if (!textToSend.trim()) return;
+    setIsProcessingVoice(true);
+    try {
+      const res = await fetch('/api/v1/voice/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command_text: textToSend, synthesize_response: true })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVoiceResult(data);
+        if (data.audio_response_base64) {
+          try {
+            const snd = new Audio(`data:audio/wav;base64,${data.audio_response_base64}`);
+            snd.play();
+          } catch (e) {
+            console.error('Audio playback error', e);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Voice command failed', err);
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  };
+
+  const handleConfirmVoiceAction = async (actionId: string, confirmed: boolean) => {
+    try {
+      const res = await fetch('/api/v1/voice/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_id: actionId, confirmed })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVoiceResult(data);
+        if (data.audio_response_base64) {
+          try {
+            const snd = new Audio(`data:audio/wav;base64,${data.audio_response_base64}`);
+            snd.play();
+          } catch (e) {
+            console.error('Audio playback error', e);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Voice action confirmation failed', err);
+    }
+  };
 
   useEffect(() => {
     fetchVitals();
@@ -276,6 +334,113 @@ export const Desktop: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Phase 24: Voice Desktop Control & Speech-to-Action Panel */}
+        <div className="p-6 rounded-2xl bg-nova-900 border border-nova-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <Mic className="h-4 w-4 text-emerald-400" />
+              <span>Voice Desktop Control & Speech-to-Action</span>
+            </h3>
+            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              AUDIO READY
+            </span>
+          </div>
+
+          {/* Quick Voice Intent Prompts */}
+          <div className="flex flex-wrap gap-2 text-xs">
+            {[
+              'Check system status',
+              'Take screenshot',
+              'Focus VS Code',
+              'Open notepad',
+              'Find files'
+            ].map((cmd) => (
+              <button
+                key={cmd}
+                onClick={() => {
+                  setVoiceInput(cmd);
+                  handleSendVoiceCommand(cmd);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-nova-950 hover:bg-nova-800 border border-nova-800 text-slate-300 transition"
+              >
+                "{cmd}"
+              </button>
+            ))}
+          </div>
+
+          {/* Voice Input Field & Trigger */}
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={voiceInput}
+              onChange={(e) => setVoiceInput(e.target.value)}
+              placeholder="Speak or type a desktop action command..."
+              className="flex-1 bg-nova-950 border border-nova-800 px-4 py-2.5 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
+            />
+            <button
+              onClick={() => handleSendVoiceCommand()}
+              disabled={isProcessingVoice}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition disabled:opacity-50"
+            >
+              <Mic className={`h-4 w-4 ${isProcessingVoice ? 'animate-bounce text-amber-300' : ''}`} />
+              <span>{isProcessingVoice ? 'Processing...' : 'Execute Voice Command'}</span>
+            </button>
+          </div>
+
+          {/* Voice Execution Result & Confirmation Barrier */}
+          {voiceResult && (
+            <div className="p-4 rounded-xl bg-nova-950 border border-nova-800 space-y-3 font-mono text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-bold">{voiceResult.command_text}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                    INTENT: {voiceResult.intent}
+                  </span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded ${
+                      voiceResult.risk_level >= 3
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        : 'bg-emerald-500/10 text-emerald-400'
+                    }`}
+                  >
+                    RISK LEVEL {voiceResult.risk_level}
+                  </span>
+                </div>
+                <span className="text-slate-400 text-[10px]">Status: {voiceResult.status}</span>
+              </div>
+
+              <div className="text-slate-300 flex items-center gap-2">
+                <Volume2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span className="italic">"{voiceResult.voice_feedback_text}"</span>
+              </div>
+
+              {/* Explicit Confirmation Barrier for Level 3/4 */}
+              {voiceResult.status === 'AWAITING_CONFIRMATION' && (
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-amber-300">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>This desktop action requires explicit human confirmation.</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleConfirmVoiceAction(voiceResult.action_id, true)}
+                      className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => handleConfirmVoiceAction(voiceResult.action_id, false)}
+                      className="px-3 py-1 rounded bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 transition"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
