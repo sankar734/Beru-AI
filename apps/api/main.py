@@ -1,3 +1,12 @@
+import os
+import sys
+from pathlib import Path
+
+# Automatically ensure workspace root is on sys.path regardless of execution directory
+_workspace_root = str(Path(__file__).resolve().parent.parent.parent)
+if _workspace_root not in sys.path:
+    sys.path.insert(0, _workspace_root)
+
 import uuid
 import time
 import logging
